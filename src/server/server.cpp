@@ -150,14 +150,17 @@ static void handle_client(int client_fd, std::string client_ip) {
             {
                 std::lock_guard<std::mutex> lock(g_users_mutex);
                 bool name_taken = g_users.count(uname) > 0;
-                // bool ip_taken   = false;
-                // for (auto& [u, s] : g_users)
-                //    if (s.ip == ip) { ip_taken = true; break; }
+                bool ip_taken   = false;
+                for (auto& [u, s] : g_users)
+                   if (s.ip == ip) { ip_taken = true; break; }
 
                 if (name_taken) {
                     send_server_response(client_fd, 409, "Username already taken.", false);
-                // } else if (ip_taken) {
-                //    send_server_response(client_fd, 409, "IP already registered.", false);
+                    goto cleanup;
+                } else if (ip_taken) {
+                   
+                   send_server_response(client_fd, 409, "IP already registered.", false);
+                   goto cleanup;
                 } else {
                     UserSession sess;
                     sess.username    = uname;
