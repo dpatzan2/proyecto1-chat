@@ -38,6 +38,18 @@
 #include "server-side/broadcast_messages.pb.h"
 #include "server-side/get_user_info_response.pb.h"
 
+// ── Colors ────────────────────────────────────────────────────────────────────
+#define COLOR_RESET   "\033[0m"
+#define COLOR_RED     "\033[31m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_WHITE   "\033[37m"
+#define COLOR_BOLD    "\033[1m"
+#define COLOR_DIM     "\033[2m"
+
 // ── Globals ───────────────────────────────────────────────────────────────────
 static std::string   g_username;
 static std::string   g_my_ip;
@@ -47,18 +59,25 @@ static std::mutex    g_print_mutex;
 static chat::StatusEnum g_my_status = chat::ACTIVE;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-static void print_line(const std::string& line) {
-    std::lock_guard<std::mutex> lock(g_print_mutex);
-    std::cout << line << "\n";
-}
-
 static std::string status_to_str(chat::StatusEnum s) {
     switch (s) {
-        case chat::ACTIVE:        return "ACTIVE";
-        case chat::DO_NOT_DISTURB:return "BUSY";
-        case chat::INVISIBLE:     return "INACTIVE";
+        case chat::ACTIVE:        return COLOR_GREEN "ACTIVE" COLOR_RESET;
+        case chat::DO_NOT_DISTURB:return COLOR_RED "BUSY" COLOR_RESET;
+        case chat::INVISIBLE:     return COLOR_DIM "INACTIVE" COLOR_RESET;
         default:                  return "UNKNOWN";
     }
+}
+
+static void print_line(const std::string& line) {
+    std::lock_guard<std::mutex> lock(g_print_mutex);
+    // Erase current line (where prompt might be)
+    std::cout << "\r\033[2K";
+    // Print the new line
+    std::cout << line << "\n";
+    // Reprint the prompt
+    std::cout << COLOR_GREEN << g_username << COLOR_RESET 
+              << " (" << status_to_str(g_my_status) << ") > " << COLOR_RESET;
+    std::cout.flush();
 }
 
 static std::string get_local_ip() {
@@ -158,43 +177,50 @@ static void receiver_thread() {
         case MSG_SERVER_RESPONSE: {
             chat::ServerResponse resp;
             if (!resp.ParseFromString(payload)) break;
-            std::string icon = resp.is_successful() ? "[OK]" : "[ERR]";
+            std::string icon = resp.is_successful() ? COLOR_GREEN "[OK]" COLOR_RESET : COLOR_RED "[ERR]" COLOR_RESET;
             print_line(icon + " " + resp.message());
             break;
         }
         case MSG_ALL_USERS: {
             chat::AllUsers au;
             if (!au.ParseFromString(payload)) break;
-            print_line("─── Connected Users ───────────────────");
+            print_line(COLOR_BOLD COLOR_CYAN "─── Connected Users ───────────────────" COLOR_RESET);
             std::string user_list_str = "  ";
             for (int i = 0; i < au.usernames_size(); i++) {
                 if (i > 0) user_list_str += " | ";
                 user_list_str += au.usernames(i) + " [" + status_to_str(au.status(i)) + "]";
             }
             print_line(user_list_str);
-            print_line("───────────────────────────────────────");
+            print_line(COLOR_BOLD COLOR_CYAN "───────────────────────────────────────" COLOR_RESET);
             break;
         }
         case MSG_FOR_DM: {
             chat::ForDm dm;
             if (!dm.ParseFromString(payload)) break;
-            print_line("[DM from " + dm.username_des() + "]: " + dm.message());
+            print_line(COLOR_MAGENTA "[DM from " + dm.username_des() + "]: " COLOR_RESET + dm.message());
             break;
         }
         case MSG_BROADCAST_DELIVERY: {
             chat::BroadcastDelivery bcast;
             if (!bcast.ParseFromString(payload)) break;
-            print_line("[" + bcast.username_origin() + "]: " + bcast.message());
+            std::string origin = bcast.username_origin();
+            if (origin == "SERVER") {
+                // Server announcement
+                print_line(COLOR_YELLOW "*** " + bcast.message() + " ***" COLOR_RESET);
+            } else {
+                // User broadcast
+                print_line(COLOR_CYAN "[" + origin + "]: " COLOR_RESET + bcast.message());
+            }
             break;
         }
         case MSG_GET_USER_INFO_RESPONSE: {
             chat::GetUserInfoResponse resp;
             if (!resp.ParseFromString(payload)) break;
-            print_line("─── User Info ─────────────────────────");
+            print_line(COLOR_BOLD "─── User Info ─────────────────────────" COLOR_RESET);
             print_line("  Username: " + resp.username());
             print_line("  IP:       " + resp.ip_address());
             print_line("  Status:   " + status_to_str(resp.status()));
-            print_line("───────────────────────────────────────");
+            print_line(COLOR_BOLD "───────────────────────────────────────" COLOR_RESET);
             break;
         }
         default:
@@ -205,11 +231,11 @@ static void receiver_thread() {
 
 // ── Help ──────────────────────────────────────────────────────────────────────
 static void print_help() {
-    std::cout <<
+    std::cout << COLOR_CYAN
         "╔══════════════════════════════════════════════════╗\n"
         "║               Chat Client - Help                 ║\n"
         "╠══════════════════════════════════════════════════╣\n"
-        "║  /broadcast <message>    Send to all users       ║\n"
+        "║  <message>               Send to all users       ║\n"
         "║  /dm <user> <message>    Send private message    ║\n"
         "║  /status <s>             Change your status:     ║\n"
         "║      s = active | busy | inactive                ║\n"
@@ -217,18 +243,23 @@ static void print_help() {
         "║  /info <username>        Show user info          ║\n"
         "║  /help                   Show this help          ║\n"
         "║  /quit                   Disconnect and exit     ║\n"
-        "╚══════════════════════════════════════════════════╝\n";
+        "╚══════════════════════════════════════════════════╝\n" COLOR_RESET;
 }
 
 // ── Input loop ────────────────────────────────────────────────────────────────
 static void input_loop() {
-    // Show short message and list users automatically
+    // Clear screen
+    std::cout << "\033[2J\033[1;1H";
+    
+    // Header
+    std::cout << COLOR_BOLD COLOR_BLUE "Welcome to the Chat App!" COLOR_RESET "\n";
     print_line("Type /help for usage.");
     do_list_users();
 
     std::string line;
     while (g_running) {
-        std::cout << "[" << g_username << "|" << status_to_str(g_my_status) << "]> ";
+        std::cout << "\r" << COLOR_GREEN << g_username << COLOR_RESET 
+                  << " (" << status_to_str(g_my_status) << ") > " << COLOR_RESET;
         std::cout.flush();
         if (!std::getline(std::cin, line)) {
             // EOF
@@ -236,6 +267,12 @@ static void input_loop() {
             break;
         }
         if (line.empty()) continue;
+
+        if (line[0] != '/') {
+            // Treat as broadcast message
+            do_broadcast(line);
+            continue;
+        }
 
         std::istringstream iss(line);
         std::string cmd;
@@ -276,16 +313,7 @@ static void input_loop() {
             g_running = false;
             break;
         } else {
-            // Shorthand: <username> <message> → DM
-            // or just message → broadcast
-            std::string rest;
-            std::getline(iss >> std::ws, rest);
-            if (!rest.empty()) {
-                // treat cmd as username, rest as message → DM
-                do_dm(cmd, rest);
-            } else {
-                print_line("Unknown command. Type /help for usage.");
-            }
+            print_line("Unknown command. Type /help for usage.");
         }
     }
 }
