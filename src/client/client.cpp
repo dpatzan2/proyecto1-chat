@@ -62,6 +62,8 @@ static std::string now_str() {
 // ── Globals ───────────────────────────────────────────────────────────────────
 static std::string   g_username;
 static std::string   g_my_ip;
+static std::string   g_server_ip;
+static int           g_server_port = 0;
 static int           g_sock_fd = -1;
 static std::atomic<bool> g_running{true};
 static std::mutex    g_print_mutex;
@@ -262,7 +264,14 @@ static void input_loop() {
     std::cout << "\033[2J\033[1;1H";
     
     // Header
-    std::cout << COLOR_BOLD COLOR_BLUE "Welcome to the Chat App!" COLOR_RESET "\n";
+    std::cout << COLOR_BOLD COLOR_BLUE
+          << "╔══════════════════════════════════════════════════╗\n"
+          << "║            CC3064 Chat App - Proyecto 1          ║\n"
+          << "╚══════════════════════════════════════════════════╝\n"
+          << COLOR_RESET;
+    std::cout << COLOR_DIM "  User   : " COLOR_RESET COLOR_GREEN << g_username << COLOR_RESET "\n";
+    std::cout << COLOR_DIM "  Server : " COLOR_RESET << g_server_ip << ":" << g_server_port << "\n";
+    std::cout << COLOR_DIM "  My IP  : " COLOR_RESET << g_my_ip << "\n\n";
     print_line("Type /help for usage.");
     do_list_users();
 
@@ -338,6 +347,8 @@ int main(int argc, char* argv[]) {
     std::string server_ip = argv[2];
     int port = std::stoi(argv[3]);
 
+    g_server_ip   = server_ip;
+    g_server_port = port;
     g_my_ip = get_local_ip();
 
     // Connect
