@@ -290,6 +290,8 @@ static void input_loop() {
         if (line[0] != '/') {
             // Treat as broadcast message
             do_broadcast(line);
+            print_line(COLOR_DIM "[" + now_str() + "] " COLOR_RESET
+                    + COLOR_CYAN "[" + g_username + "]: " COLOR_RESET + line);
             continue;
         }
 

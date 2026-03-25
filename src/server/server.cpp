@@ -89,8 +89,9 @@ static std::string remove_user_by_fd(int fd) {
     for (auto it = g_users.begin(); it != g_users.end(); ++it) {
         if (it->second.fd == fd) {
             std::string name = it->first;
-            std::cout << "[" << now_str() << "] [SERVER] User disconnected: " << name << std::endl;
             g_users.erase(it);
+            std::cout << "[" << now_str() << "] [SERVER] User disconnected: " << name
+                    << "  (users online: " << g_users.size() << ")\n";
             return name;
         }
     }
@@ -178,7 +179,8 @@ static void handle_client(int client_fd, std::string client_ip) {
                     sess.status      = chat::ACTIVE;
                     sess.last_active = std::chrono::steady_clock::now();
                     g_users[uname]   = sess;
-                    std::cout << "[" << now_str() << "] [SERVER] Registered: " << uname << " @ " << ip << "\n";
+                    std::cout << "[" << now_str() << "] [SERVER] Registered: " << uname
+                        << " @ " << ip << "  (users online: " << g_users.size() << ")\n";
                     send_server_response(client_fd, 200, "Welcome, " + uname + "!", true);
                     registered = true;
                 }
