@@ -48,7 +48,7 @@ static std::string now_str() {
 }
 
 // ── Inactivity timeout (seconds) ──────────────────────────────────────────────
-static constexpr int INACTIVITY_TIMEOUT_SEC = 60; // change to 10-15 for demo
+static constexpr int INACTIVITY_TIMEOUT_SEC = 30;
 
 // ── User session ─────────────────────────────────────────────────────────────
 struct UserSession {

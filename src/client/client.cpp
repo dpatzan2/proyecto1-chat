@@ -13,6 +13,7 @@
 #include <sstream>
 #include <cstring>
 #include <csignal>
+#include <ctime>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -49,6 +50,14 @@
 #define COLOR_WHITE   "\033[37m"
 #define COLOR_BOLD    "\033[1m"
 #define COLOR_DIM     "\033[2m"
+
+// ── Timestamp helper ──────────────────────────────────────────────────────────
+static std::string now_str() {
+    std::time_t t = std::time(nullptr);
+    char buf[9];
+    std::strftime(buf, sizeof(buf), "%H:%M:%S", std::localtime(&t));
+    return std::string(buf);
+}
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 static std::string   g_username;
@@ -197,7 +206,8 @@ static void receiver_thread() {
         case MSG_FOR_DM: {
             chat::ForDm dm;
             if (!dm.ParseFromString(payload)) break;
-            print_line(COLOR_MAGENTA "[DM from " + dm.username_des() + "]: " COLOR_RESET + dm.message());
+            print_line(COLOR_DIM "[" + now_str() + "] " COLOR_RESET
+                    + COLOR_MAGENTA "[DM from " + dm.username_des() + "]: " COLOR_RESET + dm.message());
             break;
         }
         case MSG_BROADCAST_DELIVERY: {
@@ -205,11 +215,11 @@ static void receiver_thread() {
             if (!bcast.ParseFromString(payload)) break;
             std::string origin = bcast.username_origin();
             if (origin == "SERVER") {
-                // Server announcement
-                print_line(COLOR_YELLOW "*** " + bcast.message() + " ***" COLOR_RESET);
+                print_line(COLOR_DIM "[" + now_str() + "] " COLOR_RESET
+                        + COLOR_YELLOW "*** " + bcast.message() + " ***" COLOR_RESET);
             } else {
-                // User broadcast
-                print_line(COLOR_CYAN "[" + origin + "]: " COLOR_RESET + bcast.message());
+                print_line(COLOR_DIM "[" + now_str() + "] " COLOR_RESET
+                        + COLOR_CYAN "[" + origin + "]: " COLOR_RESET + bcast.message());
             }
             break;
         }
