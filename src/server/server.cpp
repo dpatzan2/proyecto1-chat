@@ -212,7 +212,7 @@ static void handle_client(int client_fd, std::string client_ip) {
             bcast.set_username_origin(req.username_origin());
             std::string bpayload;
             bcast.SerializeToString(&bpayload);
-            broadcast_all(bpayload, MSG_BROADCAST_DELIVERY);
+            broadcast_all(bpayload, MSG_BROADCAST_DELIVERY, client_fd);
             break;
         }
 
