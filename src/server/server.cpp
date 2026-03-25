@@ -15,6 +15,7 @@
 #include <atomic>
 #include <csignal>
 #include <cstring>
+#include <ctime>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -37,6 +38,14 @@
 #include "server-side/for_dm.pb.h"
 #include "server-side/broadcast_messages.pb.h"
 #include "server-side/get_user_info_response.pb.h"
+
+// ── Timestamp helper ──────────────────────────────────────────────────────────
+static std::string now_str() {
+    std::time_t t = std::time(nullptr);
+    char buf[9]; // "HH:MM:SS\0"
+    std::strftime(buf, sizeof(buf), "%H:%M:%S", std::localtime(&t));
+    return std::string(buf);
+}
 
 // ── Inactivity timeout (seconds) ──────────────────────────────────────────────
 static constexpr int INACTIVITY_TIMEOUT_SEC = 60; // change to 10-15 for demo
@@ -80,7 +89,7 @@ static std::string remove_user_by_fd(int fd) {
     for (auto it = g_users.begin(); it != g_users.end(); ++it) {
         if (it->second.fd == fd) {
             std::string name = it->first;
-            std::cout << "[SERVER] User disconnected: " << name << std::endl;
+            std::cout << "[" << now_str() << "] [SERVER] User disconnected: " << name << std::endl;
             g_users.erase(it);
             return name;
         }
@@ -114,7 +123,7 @@ static void inactivity_monitor() {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - sess.last_active).count();
             if (elapsed >= INACTIVITY_TIMEOUT_SEC && sess.status != chat::DO_NOT_DISTURB) {
                 sess.status = chat::DO_NOT_DISTURB; // INACTIVO mapped to DO_NOT_DISTURB
-                std::cout << "[SERVER] User " << uname << " set to INACTIVE (inactivity)\n";
+                std::cout << "[" << now_str() << "] [SERVER] User " << uname << " set to INACTIVE (inactivity)\n";
                 // Notify the user
                 send_server_response(sess.fd, 200, "Your status was set to INACTIVE due to inactivity.", true);
             }
@@ -124,7 +133,7 @@ static void inactivity_monitor() {
 
 // ── Client handler thread ─────────────────────────────────────────────────────
 static void handle_client(int client_fd, std::string client_ip) {
-    std::cout << "[SERVER] New connection from " << client_ip << " fd=" << client_fd << "\n";
+    std::cout << "[" << now_str() << "] [SERVER] New connection from " << client_ip << " fd=" << client_fd << "\n";
 
     uint8_t     type;
     std::string payload;
@@ -169,7 +178,7 @@ static void handle_client(int client_fd, std::string client_ip) {
                     sess.status      = chat::ACTIVE;
                     sess.last_active = std::chrono::steady_clock::now();
                     g_users[uname]   = sess;
-                    std::cout << "[SERVER] Registered: " << uname << " @ " << ip << "\n";
+                    std::cout << "[" << now_str() << "] [SERVER] Registered: " << uname << " @ " << ip << "\n";
                     send_server_response(client_fd, 200, "Welcome, " + uname + "!", true);
                     registered = true;
                 }
@@ -194,7 +203,8 @@ static void handle_client(int client_fd, std::string client_ip) {
         case MSG_GENERAL: {
             chat::MessageGeneral req;
             if (!req.ParseFromString(payload)) break;
-
+            std::cout << "[" << now_str() << "] [BROADCAST] "
+              << req.username_origin() << ": " << req.message() << "\n";
             chat::BroadcastDelivery bcast;
             bcast.set_message(req.message());
             bcast.set_username_origin(req.username_origin());
@@ -347,7 +357,7 @@ cleanup:
         }
     }
     close(client_fd);
-    std::cout << "[SERVER] Connection closed fd=" << client_fd << "\n";
+    std::cout << "[" << now_str() << "] [SERVER] Connection closed fd=" << client_fd << "\n";
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -375,7 +385,7 @@ int main(int argc, char* argv[]) {
     if (bind(server_fd, (sockaddr*)&addr, sizeof(addr)) < 0) { perror("bind"); return 1; }
     if (listen(server_fd, 64) < 0) { perror("listen"); return 1; }
 
-    std::cout << "[SERVER] Listening on port " << port << " (inactivity timeout: "
+    std::cout << "[" << now_str() << "] [SERVER] Listening on port " << port << " (inactivity timeout: "
               << INACTIVITY_TIMEOUT_SEC << "s)\n";
 
     // Start inactivity monitor
